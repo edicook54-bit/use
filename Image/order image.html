@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GIF Maker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0e0e0f;
+    --surface: #1a1a1d;
+    --surface2: #242428;
+    --border: #2e2e34;
+    --accent: #7c6dfa;
+    --accent-dim: #3d3578;
+    --text: #e8e8f0;
+    --muted: #777786;
+    --danger: #ff4f6a;
+    --success: #3fd68b;
+    --radius: 10px;
+    --font: 'Inter', system-ui, sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px 80px;
+  }
+
+  h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 32px;
+  }
+
+  .wrapper {
+    width: 100%;
+    max-width: 860px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  /* --- Drop Zone --- */
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 40px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(124,109,250,0.06);
+  }
+  .drop-zone input[type=file] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+  }
+  .drop-zone .dz-icon {
+    font-size: 2.2rem;
+    margin-bottom: 10px;
+  }
+  .drop-zone p {
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  .drop-zone strong {
+    color: var(--accent);
+  }
+
+  /* --- Frame List --- */
+  .section-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .section-label button {
+    font-size: 0.75rem;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--danger);
+    border-radius: 6px;
+    padding: 3px 10px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .section-label button:hover { background: rgba(255,79,106,0.1); }
+
+  #frameList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 40px;
+  }
+
+  .frame-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    cursor: grab;
+    user-select: none;
+    transition: box-shadow 0.15s, opacity 0.15s, border-color 0.15s;
+    position: relative;
+  }
+  .frame-item:active { cursor: grabbing; }
+  .frame-item.dragging {
+    opacity: 0.4;
+    border-color: var(--accent);
+  }
+  .frame-item.drag-target {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent-dim);
+  }
+
+  .frame-handle {
+    color: var(--muted);
+    font-size: 1.1rem;
+    flex-shrink: 0;
+    cursor: grab;
+  }
+
+  .frame-index {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--muted);
+    width: 20px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .frame-thumb {
+    width: 56px;
+    height: 42px;
+    object-fit: cover;
+    border-radius: 6px;
+    flex-shrink: 0;
+    background: var(--surface2);
+  }
+
+  .frame-name {
+    flex: 1;
+    font-size: 0.82rem;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .frame-dims {
+    font-size: 0.72rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .frame-delay-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .frame-delay-wrap label {
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+  .frame-delay-wrap input[type=number] {
+    width: 64px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 0.8rem;
+    text-align: right;
+  }
+  .frame-delay-wrap input[type=number]:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .frame-delay-wrap .ms-label {
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+
+  .frame-remove {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+    transition: color 0.15s, background 0.15s;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+  .frame-remove:hover { color: var(--danger); background: rgba(255,79,106,0.1); }
+
+  .empty-state {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 20px 0;
+  }
+
+  /* --- Global delay row --- */
+  .global-delay-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    font-size: 0.85rem;
+    flex-wrap: wrap;
+  }
+  .global-delay-row label { color: var(--muted); }
+  .global-delay-row input[type=range] {
+    flex: 1;
+    min-width: 120px;
+    accent-color: var(--accent);
+  }
+  .global-delay-row .val { color: var(--accent); font-weight: 600; min-width: 56px; }
+  .global-delay-row button {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color 0.15s;
+  }
+  .global-delay-row button:hover { border-color: var(--accent); }
+
+  /* --- Preview --- */
+  .preview-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .preview-box .preview-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    width: 100%;
+  }
+  #previewImg {
+    max-width: 100%;
+    max-height: 340px;
+    border-radius: 8px;
+    object-fit: contain;
+    background: var(--surface2);
+  }
+  .preview-frame-counter {
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+
+  /* --- Generate bar --- */
+  .generate-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  #generateBtn {
+    width: 100%;
+    padding: 14px;
+    background: var(--accent);
+    border: none;
+    border-radius: var(--radius);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    letter-spacing: -0.01em;
+  }
+  #generateBtn:hover:not(:disabled) { opacity: 0.88; }
+  #generateBtn:active:not(:disabled) { transform: scale(0.99); }
+  #generateBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  #progressBar {
+    width: 100%;
+    height: 6px;
+    border-radius: 99px;
+    appearance: none;
+    background: var(--surface2);
+    overflow: hidden;
+  }
+  #progressBar::-webkit-progress-bar { background: var(--surface2); border-radius: 99px; }
+  #progressBar::-webkit-progress-value { background: var(--accent); border-radius: 99px; transition: width 0.1s; }
+  #progressBar::-moz-progress-bar { background: var(--accent); }
+
+  #statusText {
+    font-size: 0.82rem;
+    color: var(--muted);
+    text-align: center;
+  }
+  #statusText.ok { color: var(--success); }
+</style>
+</head>
+<body>
+
+<h1>GIF Maker</h1>
+<p class="subtitle">Stack images, reorder by dragging, set per-frame delay — export GIF.</p>
+
+<div class="wrapper">
+
+  <!-- Drop zone -->
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept="image/*" multiple>
+    <div class="dz-icon">🖼</div>
+    <p><strong>Click to add images</strong> or drag & drop here</p>
+    <p>PNG, JPG, WebP, GIF — select multiple at once</p>
+  </div>
+
+  <!-- Frame list -->
+  <div>
+    <div class="section-label">
+      Frame order — drag to reorder
+      <button id="clearAllBtn" style="display:none">Remove all</button>
+    </div>
+    <div id="frameList">
+      <div class="empty-state" id="emptyState">No frames yet — add images above.</div>
+    </div>
+  </div>
+
+  <!-- Global delay setter -->
+  <div class="global-delay-row" id="globalDelayRow" style="display:none">
+    <label for="globalSlider">All frames:</label>
+    <input type="range" id="globalSlider" min="50" max="3000" value="300" step="50">
+    <span class="val" id="globalVal">300 ms</span>
+    <button id="applyAllBtn">Apply to all</button>
+  </div>
+
+  <!-- Preview -->
+  <div class="preview-box" id="previewBox" style="display:none">
+    <div class="preview-label">Live preview</div>
+    <img id="previewImg" alt="preview">
+    <div class="preview-frame-counter" id="previewCounter">Frame 1 / 1</div>
+  </div>
+
+  <!-- Generate -->
+  <div class="generate-bar">
+    <button id="generateBtn" disabled>Generate &amp; Download GIF</button>
+    <progress id="progressBar" value="0" max="100"></progress>
+    <div id="statusText">Add images to get started.</div>
+  </div>
+
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+const frames = []; // { id, name, canvas, dataURL, w, h, delay }
+let nextId = 0;
+let previewInterval = null;
+let previewIndex = 0;
+let dragSrcId = null;
+
+// ─── DOM refs ─────────────────────────────────────────────────────────────────
+const fileInput     = document.getElementById("fileInput");
+const dropZone      = document.getElementById("dropZone");
+const frameList     = document.getElementById("frameList");
+const emptyState    = document.getElementById("emptyState");
+const clearAllBtn   = document.getElementById("clearAllBtn");
+const globalDelayRow= document.getElementById("globalDelayRow");
+const globalSlider  = document.getElementById("globalSlider");
+const globalVal     = document.getElementById("globalVal");
+const applyAllBtn   = document.getElementById("applyAllBtn");
+const previewBox    = document.getElementById("previewBox");
+const previewImg    = document.getElementById("previewImg");
+const previewCounter= document.getElementById("previewCounter");
+const generateBtn   = document.getElementById("generateBtn");
+const progressBar   = document.getElementById("progressBar");
+const statusText    = document.getElementById("statusText");
+
+// ─── File input / drop ────────────────────────────────────────────────────────
+fileInput.addEventListener("change", e => loadFiles(e.target.files));
+
+dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+dropZone.addEventListener("drop", e => {
+  e.preventDefault();
+  dropZone.classList.remove("drag-over");
+  loadFiles(e.dataTransfer.files);
+});
+
+function loadFiles(fileList) {
+  const imgs = Array.from(fileList).filter(f => f.type.startsWith("image/"));
+  if (!imgs.length) return;
+  imgs.forEach(file => readImage(file));
+}
+
+function readImage(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width  = img.width;
+      canvas.height = img.height;
+      canvas.getContext("2d").drawImage(img, 0, 0);
+      const frame = {
+        id: nextId++,
+        name: file.name,
+        canvas,
+        dataURL: canvas.toDataURL(),
+        w: img.width,
+        h: img.height,
+        delay: parseInt(globalSlider.value)
+      };
+      frames.push(frame);
+      renderFrameList();
+      restartPreview();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ─── Render frame list ────────────────────────────────────────────────────────
+function renderFrameList() {
+  frameList.innerHTML = "";
+
+  if (frames.length === 0) {
+    frameList.appendChild(emptyState);
+    clearAllBtn.style.display   = "none";
+    globalDelayRow.style.display= "none";
+    previewBox.style.display    = "none";
+    generateBtn.disabled        = true;
+    statusText.textContent      = "Add images to get started.";
+    statusText.className        = "";
+    return;
+  }
+
+  clearAllBtn.style.display    = "inline-block";
+  globalDelayRow.style.display = "flex";
+  previewBox.style.display     = "flex";
+  generateBtn.disabled         = false;
+  statusText.textContent       = frames.length + " frame" + (frames.length > 1 ? "s" : "") + " ready.";
+  statusText.className         = "";
+
+  frames.forEach((frame, index) => {
+    const item = document.createElement("div");
+    item.className   = "frame-item";
+    item.draggable   = true;
+    item.dataset.id  = frame.id;
+
+    item.innerHTML = `
+      <span class="frame-handle" title="Drag to reorder">⠿</span>
+      <span class="frame-index">${index + 1}</span>
+      <img class="frame-thumb" src="${frame.dataURL}" alt="">
+      <div style="flex:1;min-width:0">
+        <div class="frame-name" title="${frame.name}">${frame.name}</div>
+        <div class="frame-dims">${frame.w} × ${frame.h} px</div>
+      </div>
+      <div class="frame-delay-wrap">
+        <label>delay</label>
+        <input type="number" class="delay-input" min="50" max="9999" step="50" value="${frame.delay}" data-id="${frame.id}">
+        <span class="ms-label">ms</span>
+      </div>
+      <button class="frame-remove" title="Remove" data-id="${frame.id}">✕</button>
+    `;
+
+    // delay input
+    item.querySelector(".delay-input").addEventListener("change", ev => {
+      const f = frames.find(f => f.id === parseInt(ev.target.dataset.id));
+      if (f) f.delay = Math.max(50, parseInt(ev.target.value) || 100);
+    });
+
+    // remove btn
+    item.querySelector(".frame-remove").addEventListener("click", ev => {
+      ev.stopPropagation();
+      const id = parseInt(ev.currentTarget.dataset.id);
+      const idx = frames.findIndex(f => f.id === id);
+      if (idx !== -1) frames.splice(idx, 1);
+      renderFrameList();
+      restartPreview();
+    });
+
+    // drag events
+    item.addEventListener("dragstart", onDragStart);
+    item.addEventListener("dragover",  onDragOver);
+    item.addEventListener("dragleave", onDragLeave);
+    item.addEventListener("drop",      onDrop);
+    item.addEventListener("dragend",   onDragEnd);
+
+    frameList.appendChild(item);
+  });
+}
+
+// ─── Drag-to-reorder ──────────────────────────────────────────────────────────
+function onDragStart(e) {
+  dragSrcId = parseInt(e.currentTarget.dataset.id);
+  e.currentTarget.classList.add("dragging");
+  e.dataTransfer.effectAllowed = "move";
+}
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "move";
+  const targetId = parseInt(e.currentTarget.dataset.id);
+  if (targetId !== dragSrcId) e.currentTarget.classList.add("drag-target");
+}
+function onDragLeave(e) {
+  e.currentTarget.classList.remove("drag-target");
+}
+function onDrop(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const targetId = parseInt(e.currentTarget.dataset.id);
+  if (targetId === dragSrcId) return;
+
+  const srcIdx  = frames.findIndex(f => f.id === dragSrcId);
+  const tgtIdx  = frames.findIndex(f => f.id === targetId);
+
+  // Insert src before or after target based on mouse position
+  const rect = e.currentTarget.getBoundingClientRect();
+  const mid  = rect.top + rect.height / 2;
+  const insertAfter = e.clientY > mid;
+
+  const [moved] = frames.splice(srcIdx, 1);
+  const newTgt  = frames.findIndex(f => f.id === targetId);
+  frames.splice(insertAfter ? newTgt + 1 : newTgt, 0, moved);
+
+  renderFrameList();
+  restartPreview();
+}
+function onDragEnd(e) {
+  e.currentTarget.classList.remove("dragging");
+  document.querySelectorAll(".drag-target").forEach(el => el.classList.remove("drag-target"));
+  dragSrcId = null;
+}
+
+// ─── Clear all ────────────────────────────────────────────────────────────────
+clearAllBtn.addEventListener("click", () => {
+  frames.length = 0;
+  previewIndex = 0;
+  renderFrameList();
+  stopPreview();
+});
+
+// ─── Global delay ─────────────────────────────────────────────────────────────
+globalSlider.addEventListener("input", () => {
+  globalVal.textContent = globalSlider.value + " ms";
+});
+applyAllBtn.addEventListener("click", () => {
+  const v = parseInt(globalSlider.value);
+  frames.forEach(f => f.delay = v);
+  renderFrameList();
+  // keep preview going
+  restartPreview();
+});
+
+// ─── Live preview ─────────────────────────────────────────────────────────────
+function stopPreview() {
+  clearInterval(previewInterval);
+  previewInterval = null;
+}
+
+function restartPreview() {
+  stopPreview();
+  if (frames.length === 0) return;
+
+  previewIndex = 0;
+  showPreviewFrame();
+
+  if (frames.length === 1) return; // no cycling needed for single frame
+
+  function tick() {
+    const delay = frames[previewIndex]?.delay || 300;
+    previewInterval = setTimeout(() => {
+      previewIndex = (previewIndex + 1) % frames.length;
+      showPreviewFrame();
+      tick(); // schedule next with that frame's delay
+    }, delay);
+  }
+  tick();
+}
+
+function showPreviewFrame() {
+  if (frames.length === 0) return;
+  const f = frames[previewIndex];
+  previewImg.src = f.dataURL;
+  previewCounter.textContent = "Frame " + (previewIndex + 1) + " / " + frames.length + " — " + f.delay + " ms";
+}
+
+// ─── Generate GIF ─────────────────────────────────────────────────────────────
+generateBtn.addEventListener("click", () => {
+  if (frames.length === 0) return;
+
+  generateBtn.disabled  = true;
+  progressBar.value     = 0;
+  statusText.className  = "";
+  statusText.textContent= "Setting up GIF encoder...";
+
+  // Determine output canvas size = max width × max height of all frames
+  const outW = Math.max(...frames.map(f => f.w));
+  const outH = Math.max(...frames.map(f => f.h));
+
+  const gif = new GIF({
+    workers: 2,
+    quality: 10,
+    repeat: 0,
+    width: outW,
+    height: outH,
+    workerScript: "gif.worker.js"
+  });
+
+  // Composite each frame onto a canvas of the output size (centered)
+  frames.forEach((frame, i) => {
+    const c   = document.createElement("canvas");
+    c.width   = outW;
+    c.height  = outH;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, outW, outH);
+    const x = Math.floor((outW - frame.w) / 2);
+    const y = Math.floor((outH - frame.h) / 2);
+    ctx.drawImage(frame.canvas, x, y);
+    gif.addFrame(c, { delay: frame.delay, copy: true });
+    statusText.textContent = "Adding frame " + (i + 1) + " / " + frames.length + "...";
+  });
+
+  gif.on("progress", p => {
+    const pct = Math.round(p * 100);
+    progressBar.value      = pct;
+    statusText.textContent = "Encoding... " + pct + "%";
+  });
+
+  gif.on("finished", blob => {
+    statusText.textContent = "Downloading...";
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement("a");
+    a.href     = url;
+    a.download = "animation.gif";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    progressBar.value      = 100;
+    statusText.textContent = "Done ✓ — " + frames.length + " frames, " + Math.round(blob.size / 1024) + " KB";
+    statusText.className   = "ok";
+    generateBtn.disabled   = false;
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  });
+
+  gif.render();
+});
+</script>
+</body>
+</html>
