@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Invert GIF Maker</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+
+<style>
+body{
+    font-family:Arial,sans-serif;
+    background:#111;
+    color:#fff;
+    text-align:center;
+    padding:30px;
+}
+
+h1{
+    margin-bottom:20px;
+}
+
+#dropZone{
+    border:3px dashed #555;
+    padding:40px;
+    border-radius:15px;
+    cursor:pointer;
+    margin-bottom:20px;
+}
+
+#dropZone.drag{
+    border-color:#fff;
+}
+
+.preview-container{
+    display:flex;
+    justify-content:center;
+    gap:20px;
+    flex-wrap:wrap;
+    margin-top:20px;
+}
+
+.preview-box{
+    max-width:350px;
+}
+
+img{
+    max-width:100%;
+    border-radius:10px;
+    border:1px solid #333;
+}
+
+button{
+    margin-top:20px;
+    padding:12px 25px;
+    font-size:16px;
+    cursor:pointer;
+}
+
+progress{
+    width:400px;
+    max-width:90%;
+    height:25px;
+    margin-top:20px;
+}
+
+#status{
+    margin-top:15px;
+    font-size:18px;
+}
+
+#download{
+    display:none;
+    margin-top:20px;
+    color:#0f0;
+    font-size:18px;
+    text-decoration:none;
+}
+</style>
+</head>
+<body>
+
+<h1>Image → Inverted GIF</h1>
+
+<div id="dropZone">
+    Drop Image Here<br><br>
+    or Click to Select
+</div>
+
+<input type="file" id="fileInput" accept="image/*" hidden>
+
+<div class="preview-container">
+
+    <div class="preview-box">
+        <h3>Original</h3>
+        <img id="originalPreview">
+    </div>
+
+    <div class="preview-box">
+        <h3>Inverted</h3>
+        <img id="invertedPreview">
+    </div>
+
+</div>
+
+<button id="generateBtn" disabled>
+Generate GIF
+</button>
+
+<br>
+
+<progress id="progressBar" value="0" max="100"></progress>
+
+<div id="status">
+Waiting for image...
+</div>
+
+<a id="download" download="inverted_flash.gif">
+Download GIF
+</a>
+
+<script>
+
+const dropZone = document.getElementById("dropZone");
+const fileInput = document.getElementById("fileInput");
+const generateBtn = document.getElementById("generateBtn");
+
+const originalPreview = document.getElementById("originalPreview");
+const invertedPreview = document.getElementById("invertedPreview");
+
+const progressBar = document.getElementById("progressBar");
+const statusText = document.getElementById("status");
+
+const downloadLink = document.getElementById("download");
+
+let originalCanvas;
+let invertedCanvas;
+
+dropZone.addEventListener("click", () => {
+    fileInput.click();
+});
+
+dropZone.addEventListener("dragover", e => {
+    e.preventDefault();
+    dropZone.classList.add("drag");
+});
+
+dropZone.addEventListener("dragleave", () => {
+    dropZone.classList.remove("drag");
+});
+
+dropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    dropZone.classList.remove("drag");
+
+    if(e.dataTransfer.files.length){
+        loadImage(e.dataTransfer.files[0]);
+    }
+});
+
+fileInput.addEventListener("change", e => {
+    if(e.target.files.length){
+        loadImage(e.target.files[0]);
+    }
+});
+
+function loadImage(file){
+
+    statusText.textContent = "Loading image...";
+
+    const img = new Image();
+
+    img.onload = () => {
+
+        originalCanvas = document.createElement("canvas");
+        originalCanvas.width = img.width;
+        originalCanvas.height = img.height;
+
+        const ctx = originalCanvas.getContext("2d");
+        ctx.drawImage(img,0,0);
+
+        originalPreview.src = originalCanvas.toDataURL();
+
+        invertedCanvas = document.createElement("canvas");
+        invertedCanvas.width = img.width;
+        invertedCanvas.height = img.height;
+
+        const ictx = invertedCanvas.getContext("2d");
+        ictx.drawImage(img,0,0);
+
+        const imageData = ictx.getImageData(
+            0,
+            0,
+            img.width,
+            img.height
+        );
+
+        const data = imageData.data;
+
+        statusText.textContent = "Creating inverted image...";
+
+        for(let i=0;i<data.length;i+=4){
+
+            data[i] = 255-data[i];
+            data[i+1] = 255-data[i+1];
+            data[i+2] = 255-data[i+2];
+        }
+
+        ictx.putImageData(imageData,0,0);
+
+        invertedPreview.src =
+            invertedCanvas.toDataURL();
+
+        generateBtn.disabled = false;
+
+        statusText.textContent =
+            "Ready to generate GIF.";
+    };
+
+    img.src = URL.createObjectURL(file);
+}
+
+generateBtn.addEventListener("click", () => {
+
+    progressBar.value = 0;
+    downloadLink.style.display = "none";
+
+    statusText.textContent =
+        "Preparing GIF encoder...";
+
+    const gif = new GIF({
+        workers:2,
+        quality:10,
+        workerScript:
+        "https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js"
+    });
+
+    statusText.textContent =
+        "Adding Frame 1/2";
+
+    gif.addFrame(originalCanvas,{
+        delay:100
+    });
+
+    statusText.textContent =
+        "Adding Frame 2/2";
+
+    gif.addFrame(invertedCanvas,{
+        delay:100
+    });
+
+    statusText.textContent =
+        "Encoding GIF...";
+
+    gif.on("progress", p => {
+
+        const percent =
+            Math.round(p*100);
+
+        progressBar.value = percent;
+
+        statusText.textContent =
+            "Encoding GIF... " +
+            percent + "%";
+    });
+
+    gif.on("finished", blob => {
+
+        const url =
+            URL.createObjectURL(blob);
+
+        downloadLink.href = url;
+        downloadLink.style.display =
+            "inline-block";
+
+        statusText.textContent =
+            "GIF Complete ✓";
+
+        progressBar.value = 100;
+    });
+
+    gif.render();
+
+});
+
+</script>
+
+</body>
+</html>
